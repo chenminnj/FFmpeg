@@ -253,7 +253,7 @@ static int decode_unregistered_user_data(H264SEIUnregistered *h, GetBitContext *
                                          void *logctx, int size)
 {
     uint8_t *user_data;
-    int e, /*build,*/ i;
+    int e, build, i;
     AVBufferRef *buf_ref, **tmp;
 
     if (size < 16 || size >= INT_MAX - 1)
