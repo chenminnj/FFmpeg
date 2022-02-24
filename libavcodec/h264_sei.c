@@ -248,11 +248,12 @@ static int decode_registered_user_data(H264SEIContext *h, GetBitContext *gb,
     return 0;
 }
 
+#include "libavutil/time.h"
 static int decode_unregistered_user_data(H264SEIUnregistered *h, GetBitContext *gb,
                                          void *logctx, int size)
 {
     uint8_t *user_data;
-    int e, build, i;
+    int e, /*build,*/ i;
     AVBufferRef *buf_ref, **tmp;
 
     if (size < 16 || size >= INT_MAX - 1)
@@ -275,11 +276,14 @@ static int decode_unregistered_user_data(H264SEIUnregistered *h, GetBitContext *
     buf_ref->size = size;
     h->buf_ref[h->nb_buf_ref++] = buf_ref;
 
-    e = sscanf(user_data + 16, "x264 - core %d", &build);
-    if (e == 1 && build > 0)
-        h->x264_build = build;
-    if (e == 1 && build == 1 && !strncmp(user_data+16, "x264 - core 0000", 16))
-        h->x264_build = 67;
+    // e = sscanf(user_data + 16, "x264 - core %d", &build);
+    long lTimeStamp;
+    e = sscanf(user_data + 16, "ts:%ld", &lTimeStamp);    
+    av_log(logctx, AV_LOG_ERROR, "--------------I frame transport latency is: %ld\n", av_gettime() / 1000 - lTimeStamp);
+    // if (e == 1 && build > 0)
+    //     h->x264_build = build;
+    // if (e == 1 && build == 1 && !strncmp(user_data+16, "x264 - core 0000", 16))
+    //     h->x264_build = 67;
 
     return 0;
 }

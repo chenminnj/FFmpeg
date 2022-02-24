@@ -469,11 +469,14 @@ static int h264_metadata_handle_display_orientation(AVBSFContext *bsf,
     return 0;
 }
 
+#include "libavutil/time.h"
+char cTimeStamp[20];
+char *pSeiUserData = 0;
 static int h264_metadata_update_fragment(AVBSFContext *bsf, AVPacket *pkt,
                                          CodedBitstreamFragment *au)
 {
     H264MetadataContext *ctx = bsf->priv_data;
-    int err, i, has_sps, seek_point;
+    int err, i, has_sps, seek_point , has_iframe;
 
     // If an AUD is present, it must be the first NAL unit.
     if (au->nb_units && au->units[0].type == H264_NAL_AUD) {
@@ -488,12 +491,17 @@ static int h264_metadata_update_fragment(AVBSFContext *bsf, AVPacket *pkt,
     }
 
     has_sps = 0;
+    has_iframe = 0;
     for (i = 0; i < au->nb_units; i++) {
         if (au->units[i].type == H264_NAL_SPS) {
             err = h264_metadata_update_sps(bsf, au->units[i].content);
             if (err < 0)
                 return err;
             has_sps = 1;
+        }
+        // add by chenmin for sei timestamp
+        if (au->units[i].type == H264_NAL_IDR_SLICE) {
+            has_iframe = 1;
         }
     }
 
@@ -503,13 +511,27 @@ static int h264_metadata_update_fragment(AVBSFContext *bsf, AVPacket *pkt,
         // - It is the first packet in the stream.
         // - It contains an SPS, indicating that a sequence might start here.
         // - It is marked as containing a key frame.
-        seek_point = !ctx->done_first_au || has_sps ||
+        seek_point = !ctx->done_first_au || has_sps || has_iframe ||
             (pkt->flags & AV_PKT_FLAG_KEY);
     } else {
         seek_point = 0;
     }
 
     if (ctx->sei_user_data && seek_point) {
+        // add by chenmin for sei timestamp
+        if ( has_iframe ){
+           if( pSeiUserData
+               && strcmp(pSeiUserData, "{timestamp}") == 0) {
+                char mark[] = "ts:";
+                long timestamp = av_gettime() / 1000;
+                sprintf(cTimeStamp, "%s%ld", mark, timestamp);
+                        
+                ctx->sei_user_data_payload.data        = cTimeStamp;
+                ctx->sei_user_data_payload.data_length = strlen(cTimeStamp) + 1;
+                av_log(bsf, AV_LOG_ERROR, "sei timestamp is: %s,sei length is %lu\n", cTimeStamp,ctx->sei_user_data_payload.data_length);
+            }
+        }
+        
         err = ff_cbs_sei_add_message(ctx->common.output, au, 1,
                                      SEI_TYPE_USER_DATA_UNREGISTERED,
                                      &ctx->sei_user_data_payload, NULL);
@@ -581,6 +603,8 @@ static int h264_metadata_init(AVBSFContext *bsf)
         }
         if (j == 32 && ctx->sei_user_data[i] == '+') {
             udu->data = (uint8_t*)ctx->sei_user_data + i + 1;
+            // add by chenmin for sei ts
+            pSeiUserData = (uint8_t*)ctx->sei_user_data + i + 1;
             udu->data_length = strlen(udu->data) + 1;
         } else {
             av_log(bsf, AV_LOG_ERROR, "Invalid user data: "
