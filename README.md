@@ -44,3 +44,17 @@ GPL. Please refer to the LICENSE file for detailed information.
 Patches should be submitted to the ffmpeg-devel mailing list using
 `git format-patch` or `git send-email`. Github pull requests should be
 avoided because they are not part of our review process and will be ignored.
+
+
+AVC sei增加绝对时间戳，github https://github.com/chenminnj/FFmpeg/tree/sei-st 分支
+      编译：
+      ./configure --prefix=/home/chenmin/FFmpeg/build --enable-libsrt --disable-vaapi --enable-libx264 --enable-gpl
+
+      推流：
+      ./ffmpeg -stream_loop -1 -re  -i /home/chenmin/movie/demo.flv  -c:a aac -c:v copy -bsf:v h264_metadata=sei_user_data='086f3693-b7b3-4f2c-9653-21492feee5b8+{timestamp}' -f flv rtmp://192.168.0.101:1935/live/livestream
+      
+      抓屏推流：
+      ./ffmpeg -video_size 1080x720 -f x11grab -i :0.0+1080,720 -bsf:v h264_metadata=sei_user_data='086f3693-b7b3-4f2c-9653-21492feee5b8+{timestamp}'  -f flv rtmp://192.168.0.102:31965/live/1
+ 
+      播放：
+      ./ffplay rtmp://192.168.0.101:1935/live/livestream，命令行输出 I-frame 传输时间差
